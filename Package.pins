@@ -2,10 +2,22 @@
   "autoPin": true,
   "pins": [
     {
+      "package": "JiraKit",
+      "reason": null,
+      "repositoryURL": "https://github.com/ravrx8/JiraKit.git",
+      "version": "0.0.1"
+    },
+    {
       "package": "SwiftLogger",
       "reason": null,
       "repositoryURL": "https://github.com/ravrx8/SwiftLogger.git",
       "version": "0.0.5"
+    },
+    {
+      "package": "SwiftSendmail",
+      "reason": null,
+      "repositoryURL": "https://github.com/ravrx8/SwiftSendmail.git",
+      "version": "0.0.1"
     }
   ],
   "version": 1
