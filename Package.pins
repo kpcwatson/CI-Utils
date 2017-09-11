@@ -1,0 +1,12 @@
+{
+  "autoPin": true,
+  "pins": [
+    {
+      "package": "SwiftLogger",
+      "reason": null,
+      "repositoryURL": "https://github.com/ravrx8/SwiftLogger.git",
+      "version": "0.0.5"
+    }
+  ],
+  "version": 1
+}
