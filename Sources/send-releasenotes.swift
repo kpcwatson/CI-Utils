@@ -1,6 +1,6 @@
 //
-//  HTMLMessage.swift
-//  SwiftSendmail
+//  send-releasenotes.swift
+//  CI-Utils
 //
 //  Created by Kyle Watson on 9/11/17.
 //
