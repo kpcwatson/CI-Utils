@@ -14,7 +14,6 @@ import SwiftLogger
 import SwiftHTML
 import SwiftShell
 
-// TODO: parse recipients from file
 // project=GOAPPTV AND status in ('PR Approved Ready for QA')
 
 struct HTMLReport: SwiftHTML, CustomStringConvertible {
@@ -61,34 +60,31 @@ struct HTMLReport: SwiftHTML, CustomStringConvertible {
     }
 }
 
+// specify args
 let arguments = Moderator(description: "Search JIRA and send release notes to specified recipients")
 
 let host = arguments.add(Argument<String>
     .optionWithValue("h", name: "host", description: "The host to Jira")
     .default("tickets.turner.com")
-//    .required()
 )
 let jql = arguments.add(Argument<String>
     .optionWithValue("j", name: "jql", description: "Jira JQL query")
-    .default("project=GOAPPTV AND status in ('In Development', 'PR Approved Ready for QA')")
-//    .required()
+    .default("project=GOAPPTV AND status in ('PR Approved Ready for QA')")
 )
 let version = arguments.add(Argument<String>
     .optionWithValue("v", name: "version", description: "Build version")
-//    .default("2.3")
     .required()
 )
 let build = arguments.add(Argument<String>
     .optionWithValue("b", name: "build", description: "Build number")
-//    .default("2017.9.12.NNNNNN")
     .required()
 )
 let pathToRecipients = arguments.add(Argument<String>
     .optionWithValue("r", name: "recipients", description: "Path to recipients file")
     .required()
 )
-//let verbose = arguments.add(Argument<Bool>.option("verbose"))
 
+// parse args
 do {
     try arguments.parse()
 } catch {
@@ -96,8 +92,7 @@ do {
     exit(Int32(error._code))
 }
 
-let semaphore = DispatchSemaphore(value: 0)
-let jira = Jira(host: host.value)
+// parse recipients from file
 let recipients = { () -> [String] in
     do {
         return try open(pathToRecipients.value)
@@ -109,25 +104,22 @@ let recipients = { () -> [String] in
     }
 }()
 
+let semaphore = DispatchSemaphore(value: 0)
+
+// perform jira search
+let jira = Jira(host: host.value)
 jira.search(query: jql.value) { (data, error) in
     guard error == nil else {
         Logger.error(error)
         exit(Int32(error!._code))
     }
     
-    guard let data = data else {
-        Logger.error("no data")
-        exit(1)
-    }
-    
-    guard let json = try! JSONSerialization.jsonObject(with: data) as? [AnyHashable: Any] else {
-        Logger.error("unable to convert data to JSON")
-        exit(1)
-    }
-    
-    guard let issuesJson = json["issues"] as? [JSON] else {
-        Logger.error("cannot parse errors")
-        exit(1)
+    guard let data = data,
+        let json = try! JSONSerialization.jsonObject(with: data) as? [AnyHashable: Any],
+        let issuesJson = json["issues"] as? [JSON]
+        else {
+            Logger.error("error parsing JSON")
+            exit(1)
     }
     
     guard issuesJson.count > 0 else {
@@ -135,21 +127,26 @@ jira.search(query: jql.value) { (data, error) in
         exit(0)
     }
     
+    // flatMap excludes nils, ensure `issues` count matches `issuesJson` count
     let issues = issuesJson.flatMap { Issue(issue: $0) }
     guard issues.count == issuesJson.count else {
         Logger.error("Some issues could not be mapped")
         exit(1)
     }
     
+    // build HTMLMessage
     let from = "noreply@cnnxcodeserver.com"
     let subject = "tvOS \(version.value) Build (\(build.value))"
     let html = HTMLReport(version: version.value, build: build.value, issueGroups: issues.group { $0.type.name })
     let message = HTMLMessage(sender: from, recipients: recipients, subject: subject, body: String(describing: html))
     
+    // send email using `sendmail`
     let sendmail = Sendmail()
     sendmail.send(message: message)
     
+    // signal semaphore, increment count
     _ = semaphore.signal()
 }
 
+// semaphore so script does not exit before completing
 semaphore.wait()
