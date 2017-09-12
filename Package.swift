@@ -7,6 +7,7 @@ let package = Package(
     dependencies: [
         .Package(url: "https://github.com/ravrx8/SwiftLogger.git", majorVersion: 0),
         .Package(url: "https://github.com/ravrx8/JiraKit.git", majorVersion: 0),
-        .Package(url: "https://github.com/ravrx8/SwiftSendmail.git", majorVersion: 0)
+        .Package(url: "https://github.com/ravrx8/SwiftSendmail.git", majorVersion: 0),
+        .Package(url: "https://github.com/kareman/Moderator.git", majorVersion: 0),
     ]
 )
