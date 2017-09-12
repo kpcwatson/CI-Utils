@@ -68,3 +68,5 @@ fastlane/test_output
 
 # xcode project
 *.xcodeproj
+
+test-recipients.txt

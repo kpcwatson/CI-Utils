@@ -12,6 +12,7 @@ import JiraKit
 import SwiftSendmail
 import SwiftLogger
 import SwiftHTML
+import SwiftShell
 
 // TODO: parse recipients from file
 // project=GOAPPTV AND status in ('PR Approved Ready for QA')
@@ -82,6 +83,10 @@ let build = arguments.add(Argument<String>
 //    .default("2017.9.12.NNNNNN")
     .required()
 )
+let pathToRecipients = arguments.add(Argument<String>
+    .optionWithValue("r", name: "recipients", description: "Path to recipients file")
+    .required()
+)
 //let verbose = arguments.add(Argument<Bool>.option("verbose"))
 
 do {
@@ -92,8 +97,18 @@ do {
 }
 
 let semaphore = DispatchSemaphore(value: 0)
-
 let jira = Jira(host: host.value)
+let recipients = { () -> [String] in
+    do {
+        return try open(pathToRecipients.value)
+            .lines()
+            .flatMap { $0 }
+    } catch {
+        Logger.error(error)
+        exit(Int32(error._code))
+    }
+}()
+
 jira.search(query: jql.value) { (data, error) in
     guard error == nil else {
         Logger.error(error)
@@ -116,6 +131,7 @@ jira.search(query: jql.value) { (data, error) in
     }
     
     guard issuesJson.count > 0 else {
+        Logger.info("nothing to send, exiting")
         exit(0)
     }
     
@@ -126,10 +142,9 @@ jira.search(query: jql.value) { (data, error) in
     }
     
     let from = "noreply@cnnxcodeserver.com"
-    let to = ["kyle.watson@turner.com"]
     let subject = "tvOS \(version.value) Build (\(build.value))"
     let html = HTMLReport(version: version.value, build: build.value, issueGroups: issues.group { $0.type.name })
-    let message = HTMLMessage(sender: from, recipients: to, subject: subject, body: String(describing: html))
+    let message = HTMLMessage(sender: from, recipients: recipients, subject: subject, body: String(describing: html))
     
     let sendmail = Sendmail()
     sendmail.send(message: message)
