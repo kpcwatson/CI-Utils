@@ -122,11 +122,13 @@ jira.search(query: jql.value) { (data, error) in
             exit(1)
     }
     
+    // if no issues to send, then exit without error
     guard issuesJson.count > 0 else {
         Logger.info("nothing to send, exiting")
         exit(0)
     }
     
+    // flatMap to an array of `Issue` objects, json mapping is done in `Issue`
     // flatMap excludes nils, ensure `issues` count matches `issuesJson` count
     let issues = issuesJson.flatMap { Issue(issue: $0) }
     guard issues.count == issuesJson.count else {
