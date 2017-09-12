@@ -13,22 +13,24 @@ import SwiftSendmail
 import SwiftLogger
 import SwiftHTML
 
-// project=GOAPPTV AND status in ('Open','In Development','PR Approved Ready for QA') ORDER BY issuetype,assignee
+// TODO: parse recipients from file
+// project=GOAPPTV AND status in ('PR Approved Ready for QA')
 
 struct HTMLReport: SwiftHTML, CustomStringConvertible {
     typealias IssueGroups = [String: [Issue]]
     
+    let version: String
+    let build: String
     let issueGroups: IssueGroups
     
     var description: String {
         return String(describing: HTML(
             head([
-                node("meta", ["http-equiv" => "Content-Type", "content" => "text/html; charset=utf-8"], nil),
-                node("title", "tvOS Release Notes"),
-                node("style", ["type" => "text/css"], ["* {font-family: sans-serif;} ul {list-style: none;} li {margin: 1em 0;} img {vertical-align: top; width: 16px; height: 16px}"])
+                node("style", ["type" => "text/css"], ["\n* {font-family: sans-serif;}\n ul {list-style: none;}\n li {margin: 1em 0;}\n img {vertical-align: top; width: 16px; height: 16px}\n"])
             ]),
             body([
-                h1("tvOS Dev Complete Tickets")
+                h1(.text("tvOS \(version) (\(build)) Dev Complete Tickets")),
+                div([strong("Note: "), "This build is processing and should be available shortly"])
             ] + nodes))
         )
     }
@@ -51,7 +53,9 @@ struct HTMLReport: SwiftHTML, CustomStringConvertible {
         }
     }
     
-    init(issueGroups: IssueGroups) {
+    init(version: String, build: String, issueGroups: IssueGroups) {
+        self.version = version
+        self.build = build
         self.issueGroups = issueGroups
     }
 }
@@ -63,24 +67,24 @@ let arguments = Moderator(description: "Search JIRA and send release notes to sp
 let host = arguments.add(Argument<String>
     .optionWithValue("h", name: "host", description: "The host to Jira")
     .default("tickets.turner.com")
-    //    .required()
+//    .required()
 )
 let jql = arguments.add(Argument<String>
     .optionWithValue("j", name: "jql", description: "Jira JQL query")
-    .default("project = GOAPPTV AND status in (Open, Done, 'In Development', 'PR Approved Ready for QA') AND Sprint = 7569 ORDER BY issuetype, assignee")
-    //    .required()
+    .default("project=GOAPPTV AND status in ('In Development', 'PR Approved Ready for QA')")
+//    .required()
 )
 let version = arguments.add(Argument<String>
     .optionWithValue("v", name: "version", description: "Build version")
     .default("2.3")
-    //    .required()
+//    .required()
 )
 let build = arguments.add(Argument<String>
     .optionWithValue("b", name: "build", description: "Build number")
     .default("2017.9.12.NNNNNN")
-    //    .required()
+//    .required()
 )
-let verbose = arguments.add(Argument<Bool>.option("verbose"))
+//let verbose = arguments.add(Argument<Bool>.option("verbose"))
 
 do {
     try arguments.parse()
@@ -113,6 +117,10 @@ jira.search(query: jql.value) { (data, error) in
         exit(1)
     }
     
+    guard issuesJson.count > 0 else {
+        exit(0)
+    }
+    
     let issues = issuesJson.flatMap { Issue(issue: $0) }
     guard issues.count == issuesJson.count else {
         Logger.error("Some issues could not be mapped")
@@ -122,12 +130,9 @@ jira.search(query: jql.value) { (data, error) in
     let from = "noreply@cnnxcodeserver.com"
     let to = ["kyle.watson@turner.com"]
     let subject = "tvOS \(version.value) Build (\(build.value))"
-    let html = HTMLReport(issueGroups: issues.group { $0.type.name })
+    let html = HTMLReport(version: version.value, build: build.value, issueGroups: issues.group { $0.type.name })
     let message = HTMLMessage(sender: from, recipients: to, subject: subject, body: String(describing: html))
     
-    Logger.debug(String(describing: html))
-    print()
-    Logger.debug(String(describing: message))
     let sendmail = Sendmail()
     sendmail.send(message: message)
     
