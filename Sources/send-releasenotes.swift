@@ -14,8 +14,6 @@ import SwiftLogger
 import SwiftHTML
 import SwiftShell
 
-// project=GOAPPTV AND status in ('PR Approved Ready for QA')
-
 struct HTMLReport: SwiftHTML, CustomStringConvertible {
     typealias IssueGroups = [String: [Issue]]
     
@@ -65,11 +63,11 @@ let arguments = Moderator(description: "Search JIRA and send release notes to sp
 
 let host = arguments.add(Argument<String>
     .optionWithValue("h", name: "host", description: "The host to Jira")
-    .default("tickets.turner.com")
+    .required()
 )
 let jql = arguments.add(Argument<String>
     .optionWithValue("j", name: "jql", description: "Jira JQL query")
-    .default("project=GOAPPTV AND status in ('PR Approved Ready for QA')")
+    .required()
 )
 let version = arguments.add(Argument<String>
     .optionWithValue("v", name: "version", description: "Build version")
