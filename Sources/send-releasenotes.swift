@@ -60,8 +60,6 @@ struct HTMLReport: SwiftHTML, CustomStringConvertible {
     }
 }
 
-Logger.loggingLevel = .debug
-
 let arguments = Moderator(description: "Search JIRA and send release notes to specified recipients")
 
 let host = arguments.add(Argument<String>
@@ -76,13 +74,13 @@ let jql = arguments.add(Argument<String>
 )
 let version = arguments.add(Argument<String>
     .optionWithValue("v", name: "version", description: "Build version")
-    .default("2.3")
-//    .required()
+//    .default("2.3")
+    .required()
 )
 let build = arguments.add(Argument<String>
     .optionWithValue("b", name: "build", description: "Build number")
-    .default("2017.9.12.NNNNNN")
-//    .required()
+//    .default("2017.9.12.NNNNNN")
+    .required()
 )
 //let verbose = arguments.add(Argument<Bool>.option("verbose"))
 
