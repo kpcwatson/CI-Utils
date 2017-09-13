@@ -11,5 +11,6 @@ let package = Package(
         .Package(url: "https://github.com/ravrx8/SwiftHTML.git", majorVersion: 0),
         .Package(url: "https://github.com/kareman/Moderator.git", majorVersion: 0),
         .Package(url: "https://github.com/kareman/SwiftShell.git", majorVersion: 3),
+        .Package(url: "https://github.com/JohnSundell/Unbox.git", majorVersion: 2)
     ]
 )

@@ -13,8 +13,7 @@ import SwiftSendmail
 import SwiftLogger
 import SwiftHTML
 import SwiftShell
-
-typealias JSON = [AnyHashable: Any]
+import Unbox
 
 extension Sequence {
     func group<GroupingType: Hashable>(by key: (Iterator.Element) -> GroupingType) -> [GroupingType: [Iterator.Element]] {
@@ -32,70 +31,48 @@ extension Sequence {
 struct IssueType {
     let name: String
     let imageHref: String
-    
-    init?(fields: JSON) {
-        guard let type = fields["issuetype"] as? JSON,
-            let name = type["name"] as? String,
-            let imageHref = type["iconUrl"] as? String
-            else {
-                return nil
-        }
-        
-        self.name = name
-        self.imageHref = imageHref
+}
+
+extension IssueType: Unboxable {
+    init(unboxer: Unboxer) throws {
+        self.name = try unboxer.unbox(key: "name")
+        self.imageHref = try unboxer.unbox(key: "iconUrl")
     }
 }
 
 struct IssueReporter {
     let name: String
     let imageHref: String
-    
-    init?(fields: JSON) {
-        guard let reporter = fields["reporter"] as? JSON,
-            let name = reporter["displayName"] as? String,
-            let avatar = reporter["avatarUrls"] as? JSON,
-            let imageHref = avatar["16x16"] as? String
-            else {
-                return nil
-        }
-        
-        self.name = name
-        self.imageHref = imageHref
+}
+
+extension IssueReporter: Unboxable {
+    init(unboxer: Unboxer) throws {
+        self.name = try unboxer.unbox(key: "displayName")
+        self.imageHref = try unboxer.unbox(keyPath: "avatarUrls.16x16")
     }
 }
 
 struct IssueAssignee {
     let name: String
     let imageHref: String
-    
-    init?(fields: JSON) {
-        guard let assignee = fields["assignee"] as? JSON,
-            let name = assignee["displayName"] as? String,
-            let avatar = assignee["avatarUrls"] as? JSON,
-            let imageHref = avatar["16x16"] as? String
-            else {
-                return nil
-        }
-        
-        self.name = name
-        self.imageHref = imageHref
+}
+
+extension IssueAssignee: Unboxable {
+    init(unboxer: Unboxer) throws {
+        self.name = try unboxer.unbox(key: "displayName")
+        self.imageHref = try unboxer.unbox(keyPath: "avatarUrls.16x16")
     }
 }
 
 struct IssuePriority {
     let name: String
     let imageHref: String
-    
-    init?(fields: JSON) {
-        guard let priority = fields["priority"] as? JSON,
-            let name = priority["name"] as? String,
-            let imageHref = priority["iconUrl"] as? String
-            else {
-                return nil
-        }
-        
-        self.name = name
-        self.imageHref = imageHref
+}
+
+extension IssuePriority: Unboxable {
+    init(unboxer: Unboxer) throws {
+        self.name = try unboxer.unbox(key: "name")
+        self.imageHref = try unboxer.unbox(key: "iconUrl")
     }
 }
 
@@ -108,38 +85,18 @@ struct Issue {
     let reporter: IssueReporter
     let assignee: IssueAssignee?
     let priority: IssuePriority
-    
-    init?(issue: JSON) {
-        guard let key = issue["key"] as? String,
-            let fields = issue["fields"] as? JSON
-            else {
-                return nil
-        }
-        
-        self.key = key
-        
-        guard let summary = fields["summary"] as? String,
-            let updated = fields["updated"] as? String,
-            let fixVersions = fields["fixVersions"] as? [JSON],
-            let fixVersion = fixVersions.first?["name"] as? String
-            else {
-                return nil
-        }
-        
-        self.summary = summary
-        self.updated = updated
-        self.fixVersion = fixVersion
-        
-        guard let type = IssueType(fields: fields),
-            let reporter = IssueReporter(fields: fields),
-            let priority = IssuePriority(fields: fields) else {
-                return nil
-        }
-        
-        self.type = type
-        self.reporter = reporter
-        self.priority = priority
-        self.assignee = IssueAssignee(fields: fields)
+}
+
+extension Issue: Unboxable {
+    init(unboxer: Unboxer) throws {
+        self.key = try unboxer.unbox(key: "key")
+        self.summary = try unboxer.unbox(keyPath: "fields.summary")
+        self.fixVersion = try unboxer.unbox(keyPath: "fields.fixVersions.0.name")
+        self.updated = try unboxer.unbox(keyPath: "fields.updated")
+        self.type = try unboxer.unbox(keyPath: "fields.issuetype")
+        self.reporter = try unboxer.unbox(keyPath: "fields.reporter")
+        self.assignee = unboxer.unbox(keyPath: "fields.assignee")
+        self.priority = try unboxer.unbox(keyPath: "fields.priority")
     }
 }
 
@@ -242,25 +199,25 @@ jira.search(query: jql.value) { (data, error) in
     }
     
     guard let data = data,
-        let json = try! JSONSerialization.jsonObject(with: data) as? [AnyHashable: Any],
-        let issuesJson = json["issues"] as? [JSON]
+        let json = try! JSONSerialization.jsonObject(with: data) as? [String: Any]
         else {
-            Logger.error("error parsing JSON")
+            Logger.error("unable to decode json data")
             exit(1)
     }
     
-    // if no issues to send, then exit without error
-    guard issuesJson.count > 0 else {
-        Logger.info("nothing to send, exiting")
-        exit(0)
+    // decode JSON to array of `Issue`s
+    let issues: [Issue]
+    do {
+        issues = try unbox(dictionary: json, atKey: "issues")
+    } catch {
+        Logger.error("unboxing error", error)
+        exit(Int32(error._code))
     }
     
-    // flatMap to an array of `Issue` objects, json mapping is done in `Issue`
-    // flatMap excludes nils, ensure `issues` count matches `issuesJson` count
-    let issues = issuesJson.flatMap { Issue(issue: $0) }
-    guard issues.count == issuesJson.count else {
-        Logger.error("Some issues could not be mapped")
-        exit(1)
+    // if no issues to send, then exit without error
+    guard issues.count > 0 else {
+        Logger.info("nothing to send, exiting")
+        exit(0)
     }
     
     // build HTMLMessage
