@@ -169,9 +169,9 @@ struct HTMLReport: SwiftHTML, CustomStringConvertible {
                 ul(issues.flatMap({ (issue) -> Node in
                     return li([
                         div([strong("Ticket: "), a([href => "http://tickets.turner.com/browse/\(issue.key)"], .text(issue.key)), " - ", .text(issue.summary)]),
+                        div([strong("Priority: "), img([src => issue.priority.imageHref]), .text(issue.priority.name)]),
                         div([strong("Fix Version: "), .text(issue.fixVersion)]),
                         div([strong("Reported By: "), img([src => issue.reporter.imageHref]), .text(issue.reporter.name)]),
-                        div([strong("Priority: "), img([src => issue.priority.imageHref]), .text(issue.priority.name)]),
                         issue.assignee != nil ? div([strong("Assigned To: "), img([src => issue.assignee!.imageHref]), .text(issue.assignee!.name)]) : div([]),
                         div([strong("Updated: "), .text(issue.updated)])
                     ])
