@@ -130,16 +130,12 @@ let jql = arguments.add(Argument<String>
     .optionWithValue("jql", name: "query", description: "Jira JQL query")
     .required()
 )
-let type = arguments.add(Argument<String>
-    .optionWithValue("type", name: "build type", description: "Build type (QA, RC, etc.)")
+let sender = arguments.add(Argument<String>
+    .optionWithValue("f", "from", name: "sender address", description: "Sender address of email")
     .required()
 )
-let version = arguments.add(Argument<String>
-    .optionWithValue("v", "version", name: "version", description: "Build version")
-    .required()
-)
-let build = arguments.add(Argument<String>
-    .optionWithValue("b", "build", name: "build", description: "Build number")
+let subject = arguments.add(Argument<String>
+    .optionWithValue("s", "subject", name: "subject line", description: "Subject line of email")
     .required()
 )
 let pathToRecipients = arguments.add(Argument<String>
@@ -200,12 +196,8 @@ jira.search(query: jql.value) { (data, error) in
     }
     
     // build HTMLMessage
-    let from = "CNNgo tvOS Build Server <noreply@cnnxcodeserver.com>"
-    let buildType = type.value.uppercased()
-    let subject = "tvOS \(buildType) Build \(version.value) (\(build.value))"
-    let heading = subject + " " + (buildType == "RC" ? "Tickets in This Release" : "Tickets Ready for QA")
-    let html = HTMLReport(heading: heading, issueGroups: issues.group { $0.type })
-    let message = HTMLMessage(sender: from, recipients: recipients, subject: subject, body: String(describing: html))
+    let html = HTMLReport(heading: subject.value, issueGroups: issues.group { $0.type })
+    let message = HTMLMessage(sender: sender.value, recipients: recipients, subject: subject.value, body: String(describing: html))
     
     // send email using `sendmail`
     let sendmail = Sendmail()
