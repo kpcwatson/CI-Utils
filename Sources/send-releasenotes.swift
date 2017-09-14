@@ -201,8 +201,10 @@ jira.search(query: jql.value) { (data, error) in
     
     // build HTMLMessage
     let from = "CNNgo tvOS Build Server <noreply@cnnxcodeserver.com>"
-    let subject = "tvOS \(type.value.uppercased()) Build \(version.value) (\(build.value))"
-    let html = HTMLReport(heading: subject + " Dev Complete Tickets", issueGroups: issues.group { $0.type })
+    let buildType = type.value.uppercased()
+    let subject = "tvOS \(buildType) Build \(version.value) (\(build.value))"
+    let heading = subject + " " + (buildType == "RC" ? "Tickets in This Release" : "Tickets Ready for QA")
+    let html = HTMLReport(heading: heading, issueGroups: issues.group { $0.type })
     let message = HTMLMessage(sender: from, recipients: recipients, subject: subject, body: String(describing: html))
     
     // send email using `sendmail`
