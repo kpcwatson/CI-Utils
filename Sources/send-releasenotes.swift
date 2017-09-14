@@ -28,63 +28,15 @@ extension Sequence {
     }
 }
 
-struct IssueType {
-    let name: String
-    let imageHref: String
-}
-
-extension IssueType: Unboxable {
-    init(unboxer: Unboxer) throws {
-        self.name = try unboxer.unbox(key: "name")
-        self.imageHref = try unboxer.unbox(key: "iconUrl")
-    }
-}
-
-struct IssueReporter {
-    let name: String
-    let imageHref: String
-}
-
-extension IssueReporter: Unboxable {
-    init(unboxer: Unboxer) throws {
-        self.name = try unboxer.unbox(key: "displayName")
-        self.imageHref = try unboxer.unbox(keyPath: "avatarUrls.16x16")
-    }
-}
-
-struct IssueAssignee {
-    let name: String
-    let imageHref: String
-}
-
-extension IssueAssignee: Unboxable {
-    init(unboxer: Unboxer) throws {
-        self.name = try unboxer.unbox(key: "displayName")
-        self.imageHref = try unboxer.unbox(keyPath: "avatarUrls.16x16")
-    }
-}
-
-struct IssuePriority {
-    let name: String
-    let imageHref: String
-}
-
-extension IssuePriority: Unboxable {
-    init(unboxer: Unboxer) throws {
-        self.name = try unboxer.unbox(key: "name")
-        self.imageHref = try unboxer.unbox(key: "iconUrl")
-    }
-}
-
 struct Issue {
     let key: String
     let summary: String
     let fixVersion: String
     let updated: Date
-    let type: IssueType
-    let reporter: IssueReporter
-    let assignee: IssueAssignee?
-    let priority: IssuePriority
+    let type: String
+    let reporter: String
+    let assignee: String?
+    let priority: String
 }
 
 extension Issue: Unboxable {
@@ -93,10 +45,10 @@ extension Issue: Unboxable {
         self.summary = try unboxer.unbox(keyPath: "fields.summary")
         self.fixVersion = try unboxer.unbox(keyPath: "fields.fixVersions.0.name")
         self.updated = try unboxer.unbox(keyPath: "fields.updated", formatter: DateFormatters.raw)
-        self.type = try unboxer.unbox(keyPath: "fields.issuetype")
-        self.reporter = try unboxer.unbox(keyPath: "fields.reporter")
-        self.assignee = unboxer.unbox(keyPath: "fields.assignee")
-        self.priority = try unboxer.unbox(keyPath: "fields.priority")
+        self.type = try unboxer.unbox(keyPath: "fields.issuetype.name")
+        self.reporter = try unboxer.unbox(keyPath: "fields.reporter.displayName")
+        self.assignee = unboxer.unbox(keyPath: "fields.assignee.displayName")
+        self.priority = try unboxer.unbox(keyPath: "fields.priority.name")
     }
 }
 
@@ -129,7 +81,7 @@ extension HTMLReport: CustomStringConvertible {
     var description: String {
         return String(describing: HTML(
             head([
-                node("style", ["type" => "text/css"], ["\n* {font-family: sans-serif;} ul {list-style: none;} li {margin: 1em 0;} h3 {margin: .2em 0;}"])
+                node("style", ["type" => "text/css"], ["\n* {font-family: sans-serif;} \nul {list-style: none;} \nli {margin: 1em 0;} \nh3 {margin: .2em 0;}"])
             ]),
             body([
                 h1(.text(heading)),
@@ -146,10 +98,10 @@ extension HTMLReport: CustomStringConvertible {
                 ul(issues.flatMap{ (issue) -> Node in
                     return li([
                         node("h3", [a([href => "http://tickets.turner.com/browse/\(issue.key)"], .text(issue.key)), " - ", .text(issue.summary)]),
-                        div([strong("Priority: "), .text(issue.priority.name)]),
+                        div([strong("Priority: "), .text(issue.priority)]),
                         div([strong("Fix Version: "), .text(issue.fixVersion)]),
-                        div([strong("Reported By: "), .text(issue.reporter.name)]),
-                        issue.assignee != nil ? div([strong("Assigned To: "), .text(issue.assignee!.name)]) : div([]),
+                        div([strong("Reported By: "), .text(issue.reporter)]),
+                        issue.assignee != nil ? div([strong("Assigned To: "), .text(issue.assignee ?? "n/a")]) : div([]),
                         div([strong("Updated: "), .text(DateFormatters.readable.string(from: issue.updated))])
                     ])
                 })
@@ -241,7 +193,7 @@ jira.search(query: jql.value) { (data, error) in
     // build HTMLMessage
     let from = "CNNgo tvOS Build Server <noreply@cnnxcodeserver.com>"
     let subject = "tvOS \(type.value.uppercased()) Build \(version.value) (\(build.value))"
-    let html = HTMLReport(heading: subject + " Dev Complete Tickets", issueGroups: issues.group { $0.type.name })
+    let html = HTMLReport(heading: subject + " Dev Complete Tickets", issueGroups: issues.group { $0.type })
     let message = HTMLMessage(sender: from, recipients: recipients, subject: subject, body: String(describing: html))
     
     // send email using `sendmail`
