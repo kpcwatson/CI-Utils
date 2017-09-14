@@ -80,7 +80,7 @@ struct Issue {
     let key: String
     let summary: String
     let fixVersion: String
-    let updated: String
+    let updated: Date
     let type: IssueType
     let reporter: IssueReporter
     let assignee: IssueAssignee?
@@ -92,7 +92,7 @@ extension Issue: Unboxable {
         self.key = try unboxer.unbox(key: "key")
         self.summary = try unboxer.unbox(keyPath: "fields.summary")
         self.fixVersion = try unboxer.unbox(keyPath: "fields.fixVersions.0.name")
-        self.updated = try unboxer.unbox(keyPath: "fields.updated")
+        self.updated = try unboxer.unbox(keyPath: "fields.updated", formatter: DateFormatters.raw)
         self.type = try unboxer.unbox(keyPath: "fields.issuetype")
         self.reporter = try unboxer.unbox(keyPath: "fields.reporter")
         self.assignee = unboxer.unbox(keyPath: "fields.assignee")
@@ -100,20 +100,39 @@ extension Issue: Unboxable {
     }
 }
 
-struct HTMLReport: SwiftHTML, CustomStringConvertible {
+struct DateFormatters {
+    static var raw: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "yyyy-MM-dd'T'HH:mm:ss.SSSZ"
+        return formatter
+    }()
+    static var readable: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "MMM dd, yyyy h:mm a"
+        return formatter
+    }()
+}
+
+struct HTMLReport: SwiftHTML {
     typealias IssueGroups = [String: [Issue]]
     
-    let version: String
-    let build: String
+    let heading: String
     let issueGroups: IssueGroups
     
+    init(heading: String, issueGroups: IssueGroups) {
+        self.heading = heading
+        self.issueGroups = issueGroups
+    }
+}
+
+extension HTMLReport: CustomStringConvertible {
     var description: String {
         return String(describing: HTML(
             head([
-                node("style", ["type" => "text/css"], ["\n* {font-family: sans-serif;}\n ul {list-style: none;}\n li {margin: 1em 0;}\n img {vertical-align: top; width: 16px; height: 16px}\n"])
+                node("style", ["type" => "text/css"], ["\n* {font-family: sans-serif;} ul {list-style: none;} li {margin: 1em 0;} h3 {margin: .2em 0;}"])
             ]),
             body([
-                h1(.text("tvOS \(version) (\(build)) Dev Complete Tickets")),
+                h1(.text(heading)),
                 div([strong("Note: "), "This build is processing and should be available shortly"])
             ] + nodes))
         )
@@ -121,26 +140,21 @@ struct HTMLReport: SwiftHTML, CustomStringConvertible {
     
     private var nodes: [Node] {
         return issueGroups.flatMap { (type, issues) -> Node in
+            let header = issues.count > 1 ? "\(type)s" : type
             return div([
-                h2(.text(type)),
-                ul(issues.flatMap({ (issue) -> Node in
+                h2(.text(header)),
+                ul(issues.flatMap{ (issue) -> Node in
                     return li([
-                        div([strong("Ticket: "), a([href => "http://tickets.turner.com/browse/\(issue.key)"], .text(issue.key)), " - ", .text(issue.summary)]),
-                        div([strong("Priority: "), img([src => issue.priority.imageHref]), .text(issue.priority.name)]),
+                        node("h3", [a([href => "http://tickets.turner.com/browse/\(issue.key)"], .text(issue.key)), " - ", .text(issue.summary)]),
+                        div([strong("Priority: "), .text(issue.priority.name)]),
                         div([strong("Fix Version: "), .text(issue.fixVersion)]),
-                        div([strong("Reported By: "), img([src => issue.reporter.imageHref]), .text(issue.reporter.name)]),
-                        issue.assignee != nil ? div([strong("Assigned To: "), img([src => issue.assignee!.imageHref]), .text(issue.assignee!.name)]) : div([]),
-                        div([strong("Updated: "), .text(issue.updated)])
+                        div([strong("Reported By: "), .text(issue.reporter.name)]),
+                        issue.assignee != nil ? div([strong("Assigned To: "), .text(issue.assignee!.name)]) : div([]),
+                        div([strong("Updated: "), .text(DateFormatters.readable.string(from: issue.updated))])
                     ])
-                }))
+                })
             ])
         }
-    }
-    
-    init(version: String, build: String, issueGroups: IssueGroups) {
-        self.version = version
-        self.build = build
-        self.issueGroups = issueGroups
     }
 }
 
@@ -148,23 +162,27 @@ struct HTMLReport: SwiftHTML, CustomStringConvertible {
 let arguments = Moderator(description: "Search JIRA and send release notes to specified recipients")
 
 let host = arguments.add(Argument<String>
-    .optionWithValue("h", name: "host", description: "The host to Jira")
+    .optionWithValue("h", "host", name: "host", description: "The host to Jira")
     .required()
 )
 let jql = arguments.add(Argument<String>
-    .optionWithValue("j", name: "jql", description: "Jira JQL query")
+    .optionWithValue("jql", name: "query", description: "Jira JQL query")
+    .required()
+)
+let type = arguments.add(Argument<String>
+    .optionWithValue("type", name: "build type", description: "Build type (QA, RC, etc.)")
     .required()
 )
 let version = arguments.add(Argument<String>
-    .optionWithValue("v", name: "version", description: "Build version")
+    .optionWithValue("v", "version", name: "version", description: "Build version")
     .required()
 )
 let build = arguments.add(Argument<String>
-    .optionWithValue("b", name: "build", description: "Build number")
+    .optionWithValue("b", "build", name: "build", description: "Build number")
     .required()
 )
 let pathToRecipients = arguments.add(Argument<String>
-    .optionWithValue("r", name: "recipients", description: "Path to recipients file")
+    .optionWithValue("recipients", name: "path", description: "Path to recipients file")
     .required()
 )
 
@@ -221,9 +239,9 @@ jira.search(query: jql.value) { (data, error) in
     }
     
     // build HTMLMessage
-    let from = "noreply@cnnxcodeserver.com"
-    let subject = "tvOS \(version.value) Build (\(build.value))"
-    let html = HTMLReport(version: version.value, build: build.value, issueGroups: issues.group { $0.type.name })
+    let from = "CNNgo tvOS Build Server <noreply@cnnxcodeserver.com>"
+    let subject = "tvOS \(type.value.uppercased()) Build \(version.value) (\(build.value))"
+    let html = HTMLReport(heading: subject + " Dev Complete Tickets", issueGroups: issues.group { $0.type.name })
     let message = HTMLMessage(sender: from, recipients: recipients, subject: subject, body: String(describing: html))
     
     // send email using `sendmail`
