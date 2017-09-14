@@ -15,40 +15,49 @@ import SwiftHTML
 import SwiftShell
 import Unbox
 
+class SharedArray<T> {
+    var storage: [T] = []
+    init(_ items: [T]) {
+        self.storage = items
+    }
+}
+
 extension Sequence {
-    func group<GroupingType: Hashable>(by key: (Iterator.Element) -> GroupingType) -> [GroupingType: [Iterator.Element]] {
-        var groups: [GroupingType: [Iterator.Element]] = [:]
-        forEach { element in
-            let key = key(element)
-            if case nil = groups[key]?.append(element) {
-                groups[key] = [element]
+    func group<GroupingType: Hashable>(by condition: (Iterator.Element) -> GroupingType) -> [GroupingType: [Iterator.Element]] {
+        var groups: [GroupingType: SharedArray<Iterator.Element>] = [:]
+        for item in self {
+            let key = condition(item)
+            if case nil = groups[key]?.storage.append(item) {
+                groups[key] = SharedArray([item])
             }
         }
-        return groups
+        var result: [GroupingType: [Iterator.Element]] = [:]
+        groups.forEach { result[$0] = $1.storage }
+        return result
     }
 }
 
 struct Issue {
+    let type: String
     let key: String
     let summary: String
+    let priority: String
     let fixVersion: String
-    let updated: Date
-    let type: String
     let reporter: String
     let assignee: String?
-    let priority: String
+    let updated: Date
 }
 
 extension Issue: Unboxable {
     init(unboxer: Unboxer) throws {
+        self.type = try unboxer.unbox(keyPath: "fields.issuetype.name")
         self.key = try unboxer.unbox(key: "key")
         self.summary = try unboxer.unbox(keyPath: "fields.summary")
+        self.priority = try unboxer.unbox(keyPath: "fields.priority.name")
         self.fixVersion = try unboxer.unbox(keyPath: "fields.fixVersions.0.name")
-        self.updated = try unboxer.unbox(keyPath: "fields.updated", formatter: DateFormatters.raw)
-        self.type = try unboxer.unbox(keyPath: "fields.issuetype.name")
         self.reporter = try unboxer.unbox(keyPath: "fields.reporter.displayName")
         self.assignee = unboxer.unbox(keyPath: "fields.assignee.displayName")
-        self.priority = try unboxer.unbox(keyPath: "fields.priority.name")
+        self.updated = try unboxer.unbox(keyPath: "fields.updated", formatter: DateFormatters.raw)
     }
 }
 
@@ -58,6 +67,7 @@ struct DateFormatters {
         formatter.dateFormat = "yyyy-MM-dd'T'HH:mm:ss.SSSZ"
         return formatter
     }()
+    
     static var readable: DateFormatter = {
         let formatter = DateFormatter()
         formatter.dateFormat = "MMM dd, yyyy h:mm a"
@@ -91,13 +101,12 @@ extension HTMLReport: CustomStringConvertible {
     }
     
     private var nodes: [Node] {
-        return issueGroups.flatMap { (type, issues) -> Node in
-            let header = issues.count > 1 ? "\(type)s" : type
+        return issueGroups.flatMap { (type, issues) in
             return div([
-                h2(.text(header)),
-                ul(issues.flatMap{ (issue) -> Node in
+                h2(.text(issues.count > 1 ? "\(type)s" : type)),
+                ul(issues.flatMap{ issue in
                     return li([
-                        node("h3", [a([href => "http://tickets.turner.com/browse/\(issue.key)"], .text(issue.key)), " - ", .text(issue.summary)]),
+                        node("h3", [a([href => "http://tickets.turner.com/browse/\(issue.key)"], .text(issue.key)), .text(" - \(issue.summary)")]),
                         div([strong("Priority: "), .text(issue.priority)]),
                         div([strong("Fix Version: "), .text(issue.fixVersion)]),
                         div([strong("Reported By: "), .text(issue.reporter)]),
