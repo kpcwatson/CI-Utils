@@ -101,7 +101,7 @@ extension HTMLReport: CustomStringConvertible {
     }
     
     private var nodes: [Node] {
-        return issueGroups.flatMap { (type, issues) in
+        return issueGroups.flatMap { (type, issues) -> Node in
             return div([
                 h2(.text(issues.count > 1 ? "\(type)s" : type)),
                 ul(issues.flatMap{ issue in
